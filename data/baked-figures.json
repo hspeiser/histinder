@@ -1,0 +1,164 @@
+{
+  "byron": [
+    "/figures/byron/0.png",
+    "/figures/byron/1.png",
+    "/figures/byron/2.png",
+    "/figures/byron/3.png"
+  ],
+  "tycho": [
+    "/figures/tycho/0.png",
+    "/figures/tycho/1.png",
+    "/figures/tycho/2.png",
+    "/figures/tycho/3.png"
+  ],
+  "marie": [
+    "/figures/marie/0.png",
+    "/figures/marie/1.png",
+    "/figures/marie/2.png",
+    "/figures/marie/3.png"
+  ],
+  "vlad": [
+    "/figures/vlad/0.png",
+    "/figures/vlad/1.png",
+    "/figures/vlad/2.png",
+    "/figures/vlad/3.png"
+  ],
+  "cleopatra": [
+    "/figures/cleopatra/0.png",
+    "/figures/cleopatra/1.png",
+    "/figures/cleopatra/2.png",
+    "/figures/cleopatra/3.png"
+  ],
+  "diogenes": [
+    "/figures/diogenes/0.png",
+    "/figures/diogenes/1.png",
+    "/figures/diogenes/2.png",
+    "/figures/diogenes/3.png"
+  ],
+  "lincoln": [
+    "/figures/lincoln/0.png",
+    "/figures/lincoln/1.png",
+    "/figures/lincoln/2.png",
+    "/figures/lincoln/3.png"
+  ],
+  "columbus": [
+    "/figures/columbus/0.png",
+    "/figures/columbus/1.png",
+    "/figures/columbus/2.png",
+    "/figures/columbus/3.png"
+  ],
+  "napoleon": [
+    "/figures/napoleon/0.png",
+    "/figures/napoleon/1.png",
+    "/figures/napoleon/2.png",
+    "/figures/napoleon/3.png"
+  ],
+  "caesar": [
+    "/figures/caesar/0.png",
+    "/figures/caesar/1.png",
+    "/figures/caesar/2.png",
+    "/figures/caesar/3.png"
+  ],
+  "henry8": [
+    "/figures/henry8/0.png",
+    "/figures/henry8/1.png",
+    "/figures/henry8/2.png",
+    "/figures/henry8/3.png"
+  ],
+  "joan": [
+    "/figures/joan/0.png",
+    "/figures/joan/1.png",
+    "/figures/joan/2.png",
+    "/figures/joan/3.png"
+  ],
+  "leonardo": [
+    "/figures/leonardo/0.png",
+    "/figures/leonardo/1.png",
+    "/figures/leonardo/2.png",
+    "/figures/leonardo/3.png"
+  ],
+  "mozart": [
+    "/figures/mozart/0.png",
+    "/figures/mozart/1.png",
+    "/figures/mozart/2.png",
+    "/figures/mozart/3.png"
+  ],
+  "beethoven": [
+    "/figures/beethoven/0.png",
+    "/figures/beethoven/1.png",
+    "/figures/beethoven/2.png",
+    "/figures/beethoven/3.png"
+  ],
+  "vangogh": [
+    "/figures/vangogh/0.png",
+    "/figures/vangogh/1.png",
+    "/figures/vangogh/2.png",
+    "/figures/vangogh/3.png"
+  ],
+  "einstein": [
+    "/figures/einstein/0.png",
+    "/figures/einstein/1.png",
+    "/figures/einstein/2.png",
+    "/figures/einstein/3.png"
+  ],
+  "franklin": [
+    "/figures/franklin/0.png",
+    "/figures/franklin/1.png",
+    "/figures/franklin/2.png",
+    "/figures/franklin/3.png"
+  ],
+  "shakespeare": [
+    "/figures/shakespeare/0.png",
+    "/figures/shakespeare/1.png",
+    "/figures/shakespeare/2.png",
+    "/figures/shakespeare/3.png"
+  ],
+  "genghis": [
+    "/figures/genghis/0.png",
+    "/figures/genghis/1.png",
+    "/figures/genghis/2.png",
+    "/figures/genghis/3.png"
+  ],
+  "elizabeth1": [
+    "/figures/elizabeth1/0.png",
+    "/figures/elizabeth1/1.png",
+    "/figures/elizabeth1/2.png",
+    "/figures/elizabeth1/3.png"
+  ],
+  "tesla": [
+    "/figures/tesla/0.png",
+    "/figures/tesla/1.png",
+    "/figures/tesla/2.png",
+    "/figures/tesla/3.png"
+  ],
+  "edison": [
+    "/figures/edison/0.png",
+    "/figures/edison/1.png",
+    "/figures/edison/2.png",
+    "/figures/edison/3.png"
+  ],
+  "casanova": [
+    "/figures/casanova/0.png",
+    "/figures/casanova/1.png",
+    "/figures/casanova/2.png",
+    "/figures/casanova/3.png"
+  ],
+  "galileo": [
+    "/figures/galileo/0.png",
+    "/figures/galileo/1.png",
+    "/figures/galileo/2.png",
+    "/figures/galileo/3.png"
+  ],
+  "caligula": [
+    "/figures/caligula/0.png",
+    "/figures/caligula/1.png",
+    "/figures/caligula/2.png",
+    "/figures/caligula/3.png"
+  ],
+  "catherine": [
+    "/figures/catherine/0.png",
+    "/figures/catherine/1.png",
+    "/figures/catherine/2.png",
+    "/figures/catherine/3.png"
+  ]
+}

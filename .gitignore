@@ -1,0 +1,13 @@
+node_modules
+.next
+.env
+.env.local
+
+# macOS junk
+.DS_Store
+
+# TypeScript / Next build cache
+tsconfig.tsbuildinfo
+
+# Backup folder of an earlier bake — keep locally, don't ship
+public/figures/previous/

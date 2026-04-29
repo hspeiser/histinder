@@ -1,0 +1,3 @@
+# Skip the backup figure folder when deploying — saves ~250MB.
+public/figures/previous/
+scripts/
