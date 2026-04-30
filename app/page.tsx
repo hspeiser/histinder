@@ -72,19 +72,43 @@ export default function Page() {
 
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
-  // ── load
+  // ── load (server first, localStorage fallback)
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const p = JSON.parse(raw) as Persisted;
-        setUserForm({ ...EMPTY_FORM, ...(p.userForm || {}) });
-        setInbox(p.inbox || {});
-        setSwipedIds(new Set(p.swipedIds || []));
-        const persistedOrder = p.figureOrder || [];
-        // If a new figure was added since last save, append it; if the order
-        // is stale or missing, regenerate.
-        const allIds = FIGURES.map((f) => f.id);
+    let cancelled = false;
+    (async () => {
+      let loaded: Persisted | null = null;
+
+      // 1. Try server (Vercel KV via /api/state). Identified by httpOnly cookie.
+      try {
+        const res = await fetch("/api/state", { cache: "no-store" });
+        if (res.ok) {
+          const data = (await res.json()) as { state: Persisted | null };
+          if (data.state) loaded = data.state;
+        }
+      } catch {
+        // network failure — fall through to localStorage
+      }
+
+      // 2. Fall back to localStorage (offline / pre-KV state).
+      if (!loaded) {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) loaded = JSON.parse(raw) as Persisted;
+        } catch {
+          // bad data — ignore
+        }
+      }
+
+      if (cancelled) return;
+
+      const allIds = FIGURES.map((f) => f.id);
+
+      if (loaded) {
+        setUserForm({ ...EMPTY_FORM, ...(loaded.userForm || {}) });
+        setInbox(loaded.inbox || {});
+        setSwipedIds(new Set(loaded.swipedIds || []));
+
+        const persistedOrder = loaded.figureOrder || [];
         const known = new Set(persistedOrder);
         const newIds = allIds.filter((id) => !known.has(id));
         const cleanedOrder = persistedOrder.filter((id) => allIds.includes(id));
@@ -96,15 +120,17 @@ export default function Page() {
           setFigureOrder(cleanedOrder);
         }
       } else {
-        setFigureOrder(shuffle(FIGURES.map((f) => f.id)));
+        setFigureOrder(shuffle(allIds));
       }
-    } catch {
-      setFigureOrder(shuffle(FIGURES.map((f) => f.id)));
-    }
-    setHydrated(true);
+      setHydrated(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // ── save
+  // ── save (localStorage immediately, server debounced)
   useEffect(() => {
     if (!hydrated) return;
     const persisted: Persisted = {
@@ -113,7 +139,23 @@ export default function Page() {
       swipedIds: Array.from(swipedIds),
       figureOrder,
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
+    // Local cache: instant.
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
+    } catch {
+      // private mode / quota — ignore
+    }
+    // Server: debounced 600ms so rapid edits don't spam the API.
+    const timer = setTimeout(() => {
+      fetch("/api/state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(persisted),
+      }).catch(() => {
+        // server unreachable — localStorage still has it
+      });
+    }, 600);
+    return () => clearTimeout(timer);
   }, [hydrated, userForm, inbox, swipedIds, figureOrder]);
 
   const remainingFigures = useMemo(() => {
@@ -347,7 +389,10 @@ export default function Page() {
 
   function resetEverything() {
     if (!confirm("Reset Histinder? This wipes your bio, inbox, and swipes.")) return;
-    localStorage.removeItem(STORAGE_KEY);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+    fetch("/api/state", { method: "DELETE" }).catch(() => {});
     setUserForm(EMPTY_FORM);
     setInbox({});
     setSwipedIds(new Set());
