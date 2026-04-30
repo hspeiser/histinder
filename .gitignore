@@ -11,3 +11,5 @@ tsconfig.tsbuildinfo
 
 # Backup folder of an earlier bake — keep locally, don't ship
 public/figures/previous/
+.vercel
+.env*.local

@@ -46,3 +46,25 @@ html, body {
   to   { transform: translateX(0);    opacity: 1; }
 }
 .slide-in-right { animation: slide-in-right 280ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* infinite vertical waterfall loops — content is duplicated so 50% travel
+   covers exactly one set of items, then loops seamlessly. Duration is set
+   per-column inline so different layers can scroll at different speeds. */
+@keyframes scroll-down-loop {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-50%); }
+}
+@keyframes scroll-up-loop {
+  from { transform: translateY(-50%); }
+  to   { transform: translateY(0); }
+}
+.waterfall-down {
+  animation-name: scroll-down-loop;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.waterfall-up {
+  animation-name: scroll-up-loop;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
