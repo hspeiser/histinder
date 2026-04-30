@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import bakedPhotos from "@/data/baked-figures.json";
 
 const PHOTOS = bakedPhotos as Record<string, string[]>;
@@ -19,6 +19,19 @@ const HINTS = [
   "what you're looking for (or not)",
 ];
 
+const TAGLINES = [
+  "Would Genghis Khan swipe right on you?",
+  "Would Cleopatra leave you on read?",
+  "Would Napoleon say you're his type, or too tall?",
+  "Would Joan of Arc call you divinely mid?",
+  "Would Caesar risk the Senate for you?",
+  "Would Marie Antoinette let you eat cake with her?",
+  "Would Alexander the Great conquer your DMs?",
+  "Would Shakespeare write you a sonnet or ghost you?",
+  "Would Abe Lincoln think you passed the vibe check?",
+  "Would Darwin say you're naturally selected?",
+];
+
 export function BioInput({ onSubmit }: Props) {
   const [bio, setBio] = useState("");
   const tooShort = bio.trim().length < 10;
@@ -35,7 +48,9 @@ export function BioInput({ onSubmit }: Props) {
             </h1>
             <p className="mt-2 text-sm opacity-60">dating, but historically</p>
 
-            <div className="mt-8 sm:mt-10">
+            <CyclingTagline />
+
+            <div className="mt-7 sm:mt-8">
               <label className="block text-xs uppercase tracking-[0.2em] opacity-60">
                 who are you?
               </label>
@@ -130,6 +145,39 @@ function PhotoWaterfall() {
       {/* center vignette so the form stays legible */}
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-ink-900/85 to-transparent" />
       <div className="absolute inset-0 bg-gradient-to-b from-ink-900/30 via-transparent to-ink-900/50" />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cycling tagline: rotates through the "Would X swipe right on you?" questions
+// every ~3.5s with a soft cross-fade. Min-height locked so the layout doesn't
+// jump when the wrapped line count changes.
+// ─────────────────────────────────────────────────────────────────────────────
+function CyclingTagline() {
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setIdx((i) => (i + 1) % TAGLINES.length);
+    }, 3500);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="relative mt-6 min-h-[3.6em] sm:min-h-[3em]">
+      {TAGLINES.map((line, i) => (
+        <p
+          key={i}
+          className="absolute inset-0 font-serif text-[19px] leading-snug tracking-tight text-white/85 transition-opacity duration-700 ease-out sm:text-[21px]"
+          style={{
+            opacity: i === idx ? 1 : 0,
+            transitionDelay: i === idx ? "120ms" : "0ms",
+          }}
+        >
+          <span className="text-flame-400">›</span> {line}
+        </p>
+      ))}
     </div>
   );
 }
