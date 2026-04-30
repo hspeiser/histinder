@@ -23,7 +23,25 @@ function getSupabase(): SupabaseClient | null {
 
 const COOKIE_NAME = "histinder_uid";
 
-export function getUserIdFromRequest(req: NextRequest): string | null {
+/** Returns the user's ID — auth user if a valid Bearer token is present, else
+ *  the anonymous cookie UUID, else null. Best-effort. */
+export async function getUserIdFromRequest(
+  req: NextRequest,
+): Promise<string | null> {
+  // Try Bearer token first.
+  const auth = req.headers.get("authorization");
+  if (auth?.startsWith("Bearer ")) {
+    const token = auth.slice(7);
+    const sb = getSupabase();
+    if (sb) {
+      try {
+        const { data, error } = await sb.auth.getUser(token);
+        if (!error && data.user) return data.user.id;
+      } catch {
+        // fall through
+      }
+    }
+  }
   const v = req.cookies.get(COOKIE_NAME)?.value;
   if (v && /^[a-f0-9-]{20,}$/i.test(v)) return v;
   return null;

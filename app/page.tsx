@@ -7,6 +7,7 @@ import type {
   EndCard,
   Figure,
   Inbox as InboxT,
+  MatchEntry,
   UserBio,
 } from "@/src/types";
 import { BioInput } from "./components/BioInput";
@@ -17,6 +18,8 @@ import { RejectionView } from "./components/RejectionView";
 import { EndCardView } from "./components/EndCardView";
 import { MatchModal } from "./components/MatchModal";
 import { ToastStack, type ToastItem } from "./components/ToastStack";
+import { AccountView } from "./components/AccountView";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import {
   type FormState,
   EMPTY_FORM,
@@ -72,6 +75,39 @@ export default function Page() {
 
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
+  // ── Auth: optional. Anonymous mode still works fully.
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
+  const [accountOpen, setAccountOpen] = useState(false);
+
+  // Subscribe to Supabase auth state once on mount.
+  useEffect(() => {
+    const sb = getSupabaseBrowser();
+    if (!sb) return;
+    let mounted = true;
+    sb.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      const session = data.session;
+      setAccessToken(session?.access_token ?? null);
+      setAccountEmail(session?.user.email ?? null);
+    });
+    const sub = sb.auth.onAuthStateChange((_event, session) => {
+      setAccessToken(session?.access_token ?? null);
+      setAccountEmail(session?.user.email ?? null);
+    });
+    return () => {
+      mounted = false;
+      sub.data.subscription.unsubscribe();
+    };
+  }, []);
+
+  // Helper: fetch with Authorization header attached when signed in.
+  const authFetch = (input: RequestInfo, init: RequestInit = {}) => {
+    const headers = new Headers(init.headers ?? {});
+    if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+    return fetch(input, { ...init, headers });
+  };
+
   // ── load (server first, localStorage fallback)
   useEffect(() => {
     let cancelled = false;
@@ -80,7 +116,7 @@ export default function Page() {
 
       // 1. Try server (Vercel KV via /api/state). Identified by httpOnly cookie.
       try {
-        const res = await fetch("/api/state", { cache: "no-store" });
+        const res = await authFetch("/api/state", { cache: "no-store" });
         if (res.ok) {
           const data = (await res.json()) as { state: Persisted | null };
           if (data.state) loaded = data.state;
@@ -147,7 +183,7 @@ export default function Page() {
     }
     // Server: debounced 600ms so rapid edits don't spam the API.
     const timer = setTimeout(() => {
-      fetch("/api/state", {
+      authFetch("/api/state", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(persisted),
@@ -275,7 +311,7 @@ export default function Page() {
   async function fetchRejection(figureId: string, bio: string): Promise<string | null> {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const res = await fetch("/api/rejection", {
+        const res = await authFetch("/api/rejection", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ figureId, userBio: bio }),
@@ -293,7 +329,7 @@ export default function Page() {
   async function fetchOpening(figureId: string, bio: string): Promise<string | null> {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const res = await fetch("/api/opening", {
+        const res = await authFetch("/api/opening", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ figureId, userBio: bio }),
@@ -350,6 +386,87 @@ export default function Page() {
     });
   }
 
+  // ── Auto-bump: if the user has been silent on a match for 1+ minute, the
+  // figure sends a follow-up nudge. Polls every 30s. Each match can only be
+  // bumped once per "wait period" (until the user replies, the bump is locked).
+  useEffect(() => {
+    if (!hydrated) return;
+    const BUMP_AFTER_MS = 60_000;
+    const POLL_MS = 30_000;
+
+    let cancelled = false;
+    const tick = async () => {
+      const now = Date.now();
+      const candidates: MatchEntry[] = [];
+      for (const entry of Object.values(inbox)) {
+        if (entry.kind !== "match") continue;
+        if (entry.ended) continue;
+        const last = entry.messages[entry.messages.length - 1];
+        if (!last || last.role !== "figure") continue;
+        if (now - last.timestamp < BUMP_AFTER_MS) continue;
+
+        // Was the last user message AFTER the last bump? If yes, bump is fresh.
+        const lastUser = [...entry.messages].reverse().find((m) => m.role === "user");
+        const lastUserAt = lastUser?.timestamp ?? entry.matchedAt;
+        const alreadyBumped = entry.bumpedAt && entry.bumpedAt > lastUserAt;
+        if (alreadyBumped) continue;
+
+        candidates.push(entry);
+      }
+
+      for (const entry of candidates) {
+        if (cancelled) return;
+        try {
+          const res = await authFetch("/api/bump", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              figureId: entry.figureId,
+              userBio,
+              history: entry.messages,
+            }),
+          });
+          if (!res.ok) continue;
+          const data = (await res.json()) as { message?: string };
+          if (!data.message) continue;
+          if (cancelled) return;
+          setInbox((prev) => {
+            const e = prev[entry.figureId];
+            if (!e || e.kind !== "match") return prev;
+            return {
+              ...prev,
+              [entry.figureId]: {
+                ...e,
+                messages: [
+                  ...e.messages,
+                  { role: "figure", content: data.message!, timestamp: Date.now() },
+                ],
+                unread: true,
+                bumpedAt: Date.now(),
+                matchedAt: Date.now(),
+              },
+            };
+          });
+          // Toast if the user is not currently in this chat
+          if (!(view.name === "chat" && view.figureId === entry.figureId)) {
+            pushToast({ figureId: entry.figureId, kind: "match" });
+          }
+        } catch {
+          // best-effort
+        }
+      }
+    };
+
+    const id = setInterval(tick, POLL_MS);
+    // Run once on mount/hydrate too, so a tab-revisit gets a quick check.
+    const initial = setTimeout(tick, 5_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      clearTimeout(initial);
+    };
+  }, [hydrated, inbox, userBio, view]);
+
   function markMatchEnded(figureId: string) {
     setInbox((prev) => {
       const entry = prev[figureId];
@@ -372,7 +489,7 @@ export default function Page() {
     setEndCard(null);
     setEndCardLoading(true);
     try {
-      const res = await fetch("/api/end-card", {
+      const res = await authFetch("/api/end-card", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -387,12 +504,78 @@ export default function Page() {
     }
   }
 
+  // ── Auth handlers passed to AccountView ─────────────────────────────────────
+
+  async function handleSignedUp(token: string) {
+    // Use the freshly-issued token to migrate cookie state to the new auth user.
+    try {
+      await fetch("/api/migrate", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      // ignore — anonymous data simply stays under the cookie
+    }
+    // Re-pull state under the new auth identity.
+    try {
+      const res = await fetch("/api/state", {
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { state: Persisted | null };
+        if (data.state) applyLoadedState(data.state);
+      }
+    } catch {}
+  }
+
+  async function handleSignedIn(token: string) {
+    // Replace local state with the account's saved state.
+    try {
+      const res = await fetch("/api/state", {
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { state: Persisted | null };
+        if (data.state) {
+          applyLoadedState(data.state);
+        } else {
+          // Brand-new account with no saved state — start fresh.
+          setUserForm(EMPTY_FORM);
+          setInbox({});
+          setSwipedIds(new Set());
+          setFigureOrder(shuffle(FIGURES.map((f) => f.id)));
+        }
+      }
+    } catch {}
+  }
+
+  function handleSignedOut() {
+    // Token is cleared by Supabase; future requests fall back to cookie state.
+    // Nothing to do beyond letting the load effect re-run on the next reload.
+  }
+
+  function applyLoadedState(loaded: Persisted) {
+    const allIds = FIGURES.map((f) => f.id);
+    setUserForm({ ...EMPTY_FORM, ...(loaded.userForm || {}) });
+    setInbox(loaded.inbox || {});
+    setSwipedIds(new Set(loaded.swipedIds || []));
+    const persistedOrder = loaded.figureOrder || [];
+    const known = new Set(persistedOrder);
+    const newIds = allIds.filter((id) => !known.has(id));
+    const cleanedOrder = persistedOrder.filter((id) => allIds.includes(id));
+    if (cleanedOrder.length === 0) setFigureOrder(shuffle(allIds));
+    else if (newIds.length > 0) setFigureOrder([...cleanedOrder, ...shuffle(newIds)]);
+    else setFigureOrder(cleanedOrder);
+  }
+
   function resetEverything() {
     if (!confirm("Reset Histinder? This wipes your bio, inbox, and swipes.")) return;
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch {}
-    fetch("/api/state", { method: "DELETE" }).catch(() => {});
+    authFetch("/api/state", { method: "DELETE" }).catch(() => {});
     setUserForm(EMPTY_FORM);
     setInbox({});
     setSwipedIds(new Set());
@@ -466,6 +649,7 @@ export default function Page() {
         photoUrls={PHOTOS[figure.id] ?? []}
         messages={entry.messages}
         ended={Boolean(entry.ended)}
+        accessToken={accessToken}
         onAppend={(msgs) => appendMessages(figure.id, msgs)}
         onEndedByFigure={() => markMatchEnded(figure.id)}
         onEnd={() => handleEndDate(figure.id)}
@@ -522,6 +706,8 @@ export default function Page() {
           onTab={setActiveTab}
           unread={unreadCount}
           onEditProfile={() => setView({ name: "edit-profile" })}
+          onAccount={() => setAccountOpen(true)}
+          accountSignedIn={Boolean(accountEmail)}
           onReset={resetEverything}
         />
         <div className="min-h-0 flex-1 overflow-hidden">
@@ -558,6 +744,15 @@ export default function Page() {
         onOpen={openToast}
         onDismiss={dismissToast}
       />
+      {accountOpen && (
+        <AccountView
+          signedInAs={accountEmail}
+          onSignedUp={handleSignedUp}
+          onSignedIn={handleSignedIn}
+          onSignedOut={handleSignedOut}
+          onClose={() => setAccountOpen(false)}
+        />
+      )}
     </>
   );
 }
@@ -567,12 +762,16 @@ function Header({
   onTab,
   unread,
   onEditProfile,
+  onAccount,
+  accountSignedIn,
   onReset,
 }: {
   activeTab: Tab;
   onTab: (t: Tab) => void;
   unread: number;
   onEditProfile: () => void;
+  onAccount: () => void;
+  accountSignedIn: boolean;
   onReset: () => void;
 }) {
   return (
@@ -600,13 +799,27 @@ function Header({
           </span>
         </TabButton>
       </nav>
-      <button
-        type="button"
-        onClick={onReset}
-        className="text-[10px] uppercase tracking-[0.2em] opacity-30 hover:opacity-60"
-      >
-        reset
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onAccount}
+          className={`text-[10px] uppercase tracking-[0.2em] transition ${
+            accountSignedIn
+              ? "text-flame-400 hover:text-flame-300"
+              : "opacity-50 hover:opacity-100"
+          }`}
+        >
+          {accountSignedIn ? "account" : "sign in"}
+        </button>
+        <button
+          type="button"
+          onClick={onReset}
+          aria-label="reset all data"
+          className="text-[10px] uppercase tracking-[0.2em] opacity-25 hover:opacity-60"
+        >
+          reset
+        </button>
+      </div>
     </header>
   );
 }

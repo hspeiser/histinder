@@ -64,6 +64,9 @@ export interface MatchEntry {
    *  user can no longer reply — the figure has ended things. */
   ended?: boolean;
   endedAt?: number;
+  /** Set when the figure last sent a "bump" follow-up. Prevents repeat bumps
+   *  before the user has replied. */
+  bumpedAt?: number;
 }
 
 export interface RejectionEntry {

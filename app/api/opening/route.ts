@@ -13,7 +13,7 @@ interface Body {
 
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as Body;
-  const userId = getUserIdFromRequest(req);
+  const userId = await getUserIdFromRequest(req);
   try {
     const message = await generateOpening(body.figureId, body.userBio);
     if (userId) {

@@ -108,6 +108,9 @@ export function buildSystemPrompt(figure: Figure, userBio: UserBio): string {
     "ANTI-REPETITION — most important rule:",
     "EACH TURN MUST ADVANCE THE CONVERSATION. Do NOT re-mention character details or quirks you have already brought up earlier in this chat. Look at what you have already said in the message history above — your bear, your half-sister, your moose, your nose, your wig, your debts, your saints, whatever — and DO NOT bring those things up again. The user already heard them. Once you have deployed a red flag or a piece of biography, MOVE PAST IT. Each new message should add a new angle: a new question, a new pickup line, a reaction to what THEY just said, a fresh observation, a new thread of flirting. Never restate who you are. Never repeat a joke or fact you already made.",
     "",
+    "ASK THE USER QUESTIONS — the conversation must feel two-way:",
+    "You should be CURIOUS about the user. Ask them questions — about their day, their work, their hobbies, their opinions, modern things you want them to explain to you, what they think, who they've dated before, what they're looking for, where they'd take you on a date. Don't just answer their messages — turn it around and ask. Aim for at least one question every 1–2 turns. Specific questions, not generic ones (\"what's your favorite movie?\" is bad — \"i hear thy 'biking' is now a sport. dost thou wear the tight clothing?\" is good). A flirty conversation is two people poking at each other, not one performing.",
+    "",
     "LENGTH (be brief — this is a dating app, not a memoir):",
     "Default is ONE short message per turn — a single sentence, sometimes two. Two messages only when the moment really wants it. Three is rare and almost always wrong. If a single line lands, stop there. The user's screen is small. Resist the urge to elaborate, recap, or pad. Texting cadence, not speech-making.",
     "",
@@ -270,6 +273,61 @@ export async function generateOpening(
 
   const text = response.choices[0]?.message?.content?.trim();
   if (!text) throw new Error("Empty opening response");
+  return text.replace(/^["'`]|["'`]$/g, "").trim();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bump generator — fires when the user has gone silent on a figure for ~1min.
+// Produces a 1-sentence "hey, you alive?" follow-up in the figure's voice.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function generateBump(
+  figureId: string,
+  userBio: UserBio,
+  history: ChatMessage[],
+): Promise<string> {
+  const figure = FIGURES_BY_ID[figureId];
+  if (!figure) throw new Error(`Unknown figure: ${figureId}`);
+
+  const trimmedBio = userBio.trim();
+  const recentTranscript = history
+    .slice(-8)
+    .map((m) => `${m.role === "user" ? "USER" : figure.displayName.toUpperCase()}: ${m.content}`)
+    .join("\n");
+
+  const system =
+    `You are ${figure.displayName} on Histinder. The user has gone silent on ` +
+    `you for over a minute. You're sending a brief follow-up to nudge them — ` +
+    `not desperate, not whiny, in your voice. Could be a question, a tease, ` +
+    `a fresh thought, an observation. ONE short sentence.\n\n` +
+    `YOUR VOICE:\n${figure.voiceSystemPrompt}\n\n` +
+    `Be in your historical period voice (vocabulary, idiom). Period-flavor + ` +
+    `2026-self-awareness — you know they're "leaving you on read" or distracted, ` +
+    `and you can call it out subtly in your idiom.\n\n` +
+    `Examples for tone (do NOT copy):\n` +
+    `- Byron: "thou hast gone silent. dost thou compose, or dost thou ghost?"\n` +
+    `- Cleopatra: "i do not chase. but i am noticing."\n` +
+    `- Marie A.: "did i offend?? 🌸 also have you tried the new pastry place"\n` +
+    `- Diogenes: "thy silence speaks. it is mostly empty."\n` +
+    `- Mozart: "ok i wrote three bars while waiting. thy turn"\n\n` +
+    `Do NOT repeat anything you've already said in the transcript above. ` +
+    `Return ONLY the bump message — one short sentence. No prefix.`;
+
+  const user =
+    `USER BIO: ${trimmedBio || "(none)"}\n\n` +
+    `RECENT TRANSCRIPT (you are waiting on a reply from the user):\n${recentTranscript}\n\n` +
+    `Write the bump.`;
+
+  const response = await getClient().chat.completions.create({
+    model: "gpt-5.5",
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+    max_completion_tokens: 500,
+  });
+
+  const text = response.choices[0]?.message?.content?.trim();
+  if (!text) throw new Error("Empty bump response");
   return text.replace(/^["'`]|["'`]$/g, "").trim();
 }
 

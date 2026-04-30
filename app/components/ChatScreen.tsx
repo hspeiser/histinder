@@ -62,6 +62,8 @@ interface Props {
   messages: ChatMessage[];
   /** True if the figure unmatched. Locks the input. */
   ended?: boolean;
+  /** Optional Supabase access token for authenticated chat-log attribution. */
+  accessToken?: string | null;
   onAppend: (newMessages: ChatMessage[]) => void;
   /** Called when the figure unmatches mid-conversation via [END] token. */
   onEndedByFigure?: () => void;
@@ -76,6 +78,7 @@ export function ChatScreen({
   photoUrls,
   messages,
   ended = false,
+  accessToken,
   onAppend,
   onEndedByFigure,
   onEnd,
@@ -116,9 +119,13 @@ export function ChatScreen({
     setStreaming(true);
     setStreamingText("");
 
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
     const res = await fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         figureId: figure.id,
         userBio,
