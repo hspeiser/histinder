@@ -423,16 +423,23 @@ export default function Page() {
   } else {
     // Tabs view
     screen = (
-      <main className="mx-auto flex h-[100dvh] w-full max-w-md flex-col">
+      <main
+        className="mx-auto flex w-full max-w-md flex-col"
+        style={{
+          height: "100dvh",
+          paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
+      >
         <Header
           activeTab={activeTab}
           onTab={setActiveTab}
           unread={unreadCount}
           onReset={resetEverything}
         />
-        <div className="min-h-0 flex-1">
+        <div className="min-h-0 flex-1 overflow-hidden">
           {activeTab === "deck" && (
-            <div className="flex h-full flex-col items-center justify-center px-4 pb-6">
+            <div className="flex h-full flex-col px-4">
               <SwipeDeck
                 figures={remainingFigures}
                 photosByFigure={PHOTOS}

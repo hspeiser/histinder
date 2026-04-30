@@ -161,8 +161,10 @@ export function SwipeDeck({ figures, photosByFigure, onInterested, onPass }: Pro
   // ── render ──────────────────────────────────────────────────────────────────
 
   return (
-    <>
-      <div className="relative mx-auto h-[640px] w-[380px] max-w-full">
+    <div className="flex h-full w-full flex-col">
+      {/* Card area — flex-1 so the card stretches to use available height
+          on mobile (where 640px is too tall), capped at 680px on big screens. */}
+      <div className="relative mx-auto mt-2 min-h-0 w-[380px] max-w-full flex-1 sm:max-h-[680px]">
         {next && photosByFigure[next.id] && (
           <div
             className="pointer-events-none absolute inset-0"
@@ -202,7 +204,8 @@ export function SwipeDeck({ figures, photosByFigure, onInterested, onPass }: Pro
         ) : null}
       </div>
 
-      <div className="mt-6 flex items-center justify-center gap-6">
+      {/* Action bar — hugs the bottom of the deck section. */}
+      <div className="flex shrink-0 items-center justify-center gap-6 pb-3 pt-4 sm:pt-5 sm:pb-4">
         <ActionButton
           onClick={() => commitSwipe("left")}
           disabled={!top || committing}
@@ -244,7 +247,7 @@ export function SwipeDeck({ figures, photosByFigure, onInterested, onPass }: Pro
           }}
         />
       )}
-    </>
+    </div>
   );
 }
 
