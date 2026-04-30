@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import bakedPhotos from "@/data/baked-figures.json";
 
 const PHOTOS = bakedPhotos as Record<string, string[]>;
@@ -110,11 +111,13 @@ interface ColumnConfig {
 
 function PhotoWaterfall() {
   const layers = useMemo<ColumnConfig[]>(() => {
+    // Only use ONE photo per figure on the homepage (the main portrait, photo
+    // 0). 27 unique faces is plenty of variety for the waterfall, vs. loading
+    // 108 multi-megabyte source images.
     const all: string[] = [];
     for (const photos of Object.values(PHOTOS)) {
-      for (const url of photos) {
-        if (url) all.push(url);
-      }
+      const first = photos[0];
+      if (first) all.push(first);
     }
     if (all.length === 0) return [];
 
@@ -232,20 +235,25 @@ function Column({
         {doubled.map((url, i) => {
           const brick = i % 2 === 0 ? 0 : side === "left" ? 12 : -12;
           return (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <div
               key={`${i}-${url}`}
-              src={url}
-              alt=""
-              draggable={false}
-              loading="lazy"
-              className="w-full rounded-2xl object-cover shadow-2xl shadow-black/60"
+              className="relative w-full overflow-hidden rounded-2xl shadow-2xl shadow-black/60"
               style={{
                 aspectRatio: "3 / 4",
                 opacity,
                 transform: `translateX(${brick}px)`,
               }}
-            />
+            >
+              <Image
+                src={url}
+                alt=""
+                fill
+                sizes="(max-width: 640px) 100px, (max-width: 768px) 130px, (max-width: 1024px) 200px, 240px"
+                quality={45}
+                draggable={false}
+                className="object-cover"
+              />
+            </div>
           );
         })}
       </div>
