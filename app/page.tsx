@@ -386,13 +386,13 @@ export default function Page() {
     });
   }
 
-  // ── Auto-bump: if the user has been silent on a match for 1+ minute, the
-  // figure sends a follow-up nudge. Polls every 30s. Each match can only be
-  // bumped once per "wait period" (until the user replies, the bump is locked).
+  // ── Auto-bump: if the user has been silent on a match for 5+ minutes, the
+  // figure sends ONE follow-up nudge. Strictly once per match — once bumpedAt
+  // is set, this match is never bumped again no matter what.
   useEffect(() => {
     if (!hydrated) return;
-    const BUMP_AFTER_MS = 60_000;
-    const POLL_MS = 30_000;
+    const BUMP_AFTER_MS = 5 * 60_000; // 5 minutes
+    const POLL_MS = 60_000; // check once a minute
 
     let cancelled = false;
     const tick = async () => {
@@ -401,15 +401,11 @@ export default function Page() {
       for (const entry of Object.values(inbox)) {
         if (entry.kind !== "match") continue;
         if (entry.ended) continue;
+        // Once-forever: any prior bump locks this match out permanently.
+        if (entry.bumpedAt) continue;
         const last = entry.messages[entry.messages.length - 1];
         if (!last || last.role !== "figure") continue;
         if (now - last.timestamp < BUMP_AFTER_MS) continue;
-
-        // Was the last user message AFTER the last bump? If yes, bump is fresh.
-        const lastUser = [...entry.messages].reverse().find((m) => m.role === "user");
-        const lastUserAt = lastUser?.timestamp ?? entry.matchedAt;
-        const alreadyBumped = entry.bumpedAt && entry.bumpedAt > lastUserAt;
-        if (alreadyBumped) continue;
 
         candidates.push(entry);
       }
@@ -433,6 +429,9 @@ export default function Page() {
           setInbox((prev) => {
             const e = prev[entry.figureId];
             if (!e || e.kind !== "match") return prev;
+            // Defensive: if somehow we already bumped this entry, abort the
+            // append so we don't double-bump on a race.
+            if (e.bumpedAt) return prev;
             return {
               ...prev,
               [entry.figureId]: {
@@ -443,7 +442,9 @@ export default function Page() {
                 ],
                 unread: true,
                 bumpedAt: Date.now(),
-                matchedAt: Date.now(),
+                // NOTE: deliberately NOT bumping matchedAt — we want the inbox
+                // sort order to track real interactions, and the lastUserAt
+                // fallback used to flip the once-only check back to false.
               },
             };
           });
