@@ -60,6 +60,10 @@ export interface MatchEntry {
   messages: ChatMessage[];
   unread: boolean;
   matchedAt: number;
+  /** Set when the figure unmatches mid-conversation. After this is true, the
+   *  user can no longer reply — the figure has ended things. */
+  ended?: boolean;
+  endedAt?: number;
 }
 
 export interface RejectionEntry {

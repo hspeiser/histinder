@@ -17,10 +17,16 @@ import { RejectionView } from "./components/RejectionView";
 import { EndCardView } from "./components/EndCardView";
 import { MatchModal } from "./components/MatchModal";
 import { ToastStack, type ToastItem } from "./components/ToastStack";
+import {
+  type FormState,
+  EMPTY_FORM,
+  serializeBio,
+  isFormReady,
+} from "@/src/bio";
 import bakedPhotos from "@/data/baked-figures.json";
 
 const PHOTOS = bakedPhotos as Record<string, string[]>;
-const STORAGE_KEY = "histinder-state-v3";
+const STORAGE_KEY = "histinder-state-v4";
 
 type Tab = "deck" | "inbox";
 
@@ -29,10 +35,11 @@ type View =
   | { name: "chat"; figureId: string }
   | { name: "match-cut"; figureId: string }
   | { name: "rejection"; figureId: string }
-  | { name: "endcard"; figureId: string };
+  | { name: "endcard"; figureId: string }
+  | { name: "edit-profile" };
 
 interface Persisted {
-  userBio: UserBio;
+  userForm: FormState;
   inbox: InboxT;
   swipedIds: string[];
   /** Stable shuffled order of figure ids for this session. */
@@ -50,12 +57,15 @@ function shuffle<T>(items: T[]): T[] {
 
 export default function Page() {
   const [hydrated, setHydrated] = useState(false);
-  const [userBio, setUserBio] = useState<UserBio>("");
+  const [userForm, setUserForm] = useState<FormState>(EMPTY_FORM);
   const [inbox, setInbox] = useState<InboxT>({});
   const [swipedIds, setSwipedIds] = useState<Set<string>>(new Set());
   const [figureOrder, setFigureOrder] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>("deck");
   const [view, setView] = useState<View>({ name: "tabs" });
+
+  const hasProfile = isFormReady(userForm);
+  const userBio = useMemo(() => serializeBio(userForm), [userForm]);
 
   const [endCard, setEndCard] = useState<EndCard | null>(null);
   const [endCardLoading, setEndCardLoading] = useState(false);
@@ -68,7 +78,7 @@ export default function Page() {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const p = JSON.parse(raw) as Persisted;
-        setUserBio(p.userBio || "");
+        setUserForm({ ...EMPTY_FORM, ...(p.userForm || {}) });
         setInbox(p.inbox || {});
         setSwipedIds(new Set(p.swipedIds || []));
         const persistedOrder = p.figureOrder || [];
@@ -98,13 +108,13 @@ export default function Page() {
   useEffect(() => {
     if (!hydrated) return;
     const persisted: Persisted = {
-      userBio,
+      userForm,
       inbox,
       swipedIds: Array.from(swipedIds),
       figureOrder,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
-  }, [hydrated, userBio, inbox, swipedIds, figureOrder]);
+  }, [hydrated, userForm, inbox, swipedIds, figureOrder]);
 
   const remainingFigures = useMemo(() => {
     if (figureOrder.length === 0) return [];
@@ -123,8 +133,9 @@ export default function Page() {
 
   // ── handlers ────────────────────────────────────────────────────────────────
 
-  function handleBioSubmit(bio: string) {
-    setUserBio(bio);
+  function handleBioSubmit(form: FormState) {
+    setUserForm(form);
+    setView({ name: "tabs" });
   }
 
   function rememberSwiped(id: string) {
@@ -297,6 +308,21 @@ export default function Page() {
     });
   }
 
+  function markMatchEnded(figureId: string) {
+    setInbox((prev) => {
+      const entry = prev[figureId];
+      if (!entry || entry.kind !== "match") return prev;
+      return {
+        ...prev,
+        [figureId]: {
+          ...entry,
+          ended: true,
+          endedAt: Date.now(),
+        },
+      };
+    });
+  }
+
   async function handleEndDate(figureId: string) {
     const entry = inbox[figureId];
     if (!entry || entry.kind !== "match") return;
@@ -322,7 +348,7 @@ export default function Page() {
   function resetEverything() {
     if (!confirm("Reset Histinder? This wipes your bio, inbox, and swipes.")) return;
     localStorage.removeItem(STORAGE_KEY);
-    setUserBio("");
+    setUserForm(EMPTY_FORM);
     setInbox({});
     setSwipedIds(new Set());
     setFigureOrder(shuffle(FIGURES.map((f) => f.id)));
@@ -334,13 +360,26 @@ export default function Page() {
 
   if (!hydrated) return null;
 
-  if (!userBio) {
+  if (!hasProfile) {
     return <BioInput onSubmit={handleBioSubmit} />;
   }
 
   let screen: React.ReactNode = null;
 
-  if (view.name === "match-cut") {
+  if (view.name === "edit-profile") {
+    screen = (
+      <BioInput
+        onSubmit={(form) => {
+          setUserForm(form);
+          setView({ name: "tabs" });
+        }}
+        onCancel={() => setView({ name: "tabs" })}
+        initial={userForm}
+        submitLabel="save changes"
+        minimal
+      />
+    );
+  } else if (view.name === "match-cut") {
     const figure = FIGURES_BY_ID[view.figureId]!;
     const entry = inbox[view.figureId];
     const firstFigureMessage =
@@ -381,7 +420,9 @@ export default function Page() {
         avatarUrl={(PHOTOS[figure.id] ?? [])[0] ?? ""}
         photoUrls={PHOTOS[figure.id] ?? []}
         messages={entry.messages}
+        ended={Boolean(entry.ended)}
         onAppend={(msgs) => appendMessages(figure.id, msgs)}
+        onEndedByFigure={() => markMatchEnded(figure.id)}
         onEnd={() => handleEndDate(figure.id)}
         onBack={() => {
           setActiveTab("inbox");
@@ -435,6 +476,7 @@ export default function Page() {
           activeTab={activeTab}
           onTab={setActiveTab}
           unread={unreadCount}
+          onEditProfile={() => setView({ name: "edit-profile" })}
           onReset={resetEverything}
         />
         <div className="min-h-0 flex-1 overflow-hidden">
@@ -479,18 +521,25 @@ function Header({
   activeTab,
   onTab,
   unread,
+  onEditProfile,
   onReset,
 }: {
   activeTab: Tab;
   onTab: (t: Tab) => void;
   unread: number;
+  onEditProfile: () => void;
   onReset: () => void;
 }) {
   return (
-    <header className="flex items-center justify-between px-5 pt-4 pb-2">
-      <h1 className="font-serif text-xl tracking-tight">
-        <span className="text-flame-500">Hist</span>inder
-      </h1>
+    <header className="flex items-center justify-between gap-2 px-4 pt-4 pb-2 sm:px-5">
+      <button
+        type="button"
+        onClick={onEditProfile}
+        aria-label="edit your profile"
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/15 bg-white/5 text-base transition hover:border-flame-500/50 hover:bg-flame-500/10"
+      >
+        🙂
+      </button>
       <nav className="flex rounded-full border border-white/10 bg-white/[0.03] p-1 text-xs">
         <TabButton active={activeTab === "deck"} onClick={() => onTab("deck")}>
           discover

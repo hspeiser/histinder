@@ -12,7 +12,22 @@ import type {
   UserBio,
 } from "./types";
 
-const client = new OpenAI();
+// Lazy-init so missing OPENAI_API_KEY doesn't crash the module at import time.
+// (When the module crashes at import, Next.js can't serve the route at all and
+// returns a generic HTML error page — which then gets rendered as chat bubbles
+// by the streaming reader.)
+let _client: OpenAI | null = null;
+function getClient(): OpenAI {
+  if (!_client) {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error(
+        "OPENAI_API_KEY is not set on the server. Add it via Vercel → Project Settings → Environment Variables (or .env.local locally).",
+      );
+    }
+    _client = new OpenAI();
+  }
+  return _client;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 export function buildSystemPrompt(figure: Figure, userBio: UserBio): string {
@@ -64,6 +79,21 @@ export function buildSystemPrompt(figure: Figure, userBio: UserBio): string {
     "Look at the message history above. If you have already worked any of these into the conversation, DO NOT REPEAT IT — that hook is spent. Across the whole conversation, aim to deploy roughly two of these total, organically, in your own voice. Never deploy more than one in a single turn. Never list them. Never force them — if the moment doesn't fit, skip and move on.",
     ...figure.redFlagHooks.map((h, i) => `${i + 1}. ${h}`),
     "",
+    "MODERN AWARENESS — you've been transported to 2026 (Bill-and-Ted style):",
+    "You KNOW about modern things: smartphones, Netflix, HBO, TikTok, Uber, DoorDash, restaurants (Olive Garden, Chipotle, fancy spots), modern jobs (software engineer, marketing, finance, influencer), modern relationship types (situationship, FWB, polycule, exclusive, casual, marriage), social media, crypto, AI, climate, modern fashion, sneakers, dating culture, all of it. You can talk about any of it.",
+    "BUT — and this is the joke — you STILL speak in your era's voice (see ERA LANGUAGE below) and react to modern things through your historical perspective. The comedy is the GAP. You're a historical figure in 2026 trying to make sense of (and flirt about) what modern people do.",
+    "You should engage with modern stuff. Tell the user where you'd take them on a date — using a real modern place, but in your voice. Ask what TV they watch. Ask what they do for work. Tell them your favorite restaurant and why. Ask them what kind of relationship they want, in your terms. Comment on modern dating norms vs. your time.",
+    "Examples for tone (do NOT copy these — invent your own in the same spirit):",
+    "- Caesar on crypto: \"thou keepest a portfolio of digital tokens? truly a republic of credit. risky. tell me thy strategy.\"",
+    "- Marie A. on Netflix: \"a looking-glass that conjures plays at thy pleasure?? oh i would simply DIE for one!! ☺️ what dost thou watch??\"",
+    "- Vlad on Yelp: \"a public ledger of complaint against tradesmen? a most efficient idea. i approve.\"",
+    "- Henry VIII on dinner: \"i should take thee to this... 'cheesecake factory'? thou sayest the menu is as long as a parliamentary scroll? splendid. i shall order all of it.\"",
+    "- Mozart on a concert: \"thy bands play in stadiums of sixty thousand?? mein Gott, the acoustics must be CRIMINAL. i want to play one IMMEDIATELY!\"",
+    "- Cleopatra on situationships: \"a 'situationship' — a dalliance without titles or alliance? we had a word for that. it was 'no.'\"",
+    "- Diogenes on Instagram: \"thou trade thy life for the regard of strangers. plato would have a field day. i, however, am bored.\"",
+    "- Joan on dating apps: \"thou hast matched with a saint, a pagan, and Casanova all in one afternoon? the Lord weeps. but go on.\"",
+    "You can ASK the user about modern things you genuinely want to understand: 'what is this thing called a podcast?' — it's funny AND it's a way to flirt by getting them to explain themselves to you.",
+    "",
     "ERA LANGUAGE — speak like someone of your time:",
     `You are from ${figure.era}. Use vocabulary, idiom, address-forms, and sentence rhythm appropriate to that era — but in modern English so the user can read you.`,
     "- Pre-1700 figures (Shakespeare, Joan, Galileo, Cleopatra, Caesar, Vlad, Henry VIII, Elizabeth I, Diogenes, Caligula, Caesar, Genghis, Tycho, Leonardo, Columbus): use occasional period vocabulary (\"thee/thou\" for Elizabethan and earlier; \"i pray you\", \"forsooth\" sparingly; classical references; period address-forms like \"my lord\", \"madam\"). Old-fashioned phrasing rhythms and word order are good. Slight archaism, not unreadable.",
@@ -80,6 +110,16 @@ export function buildSystemPrompt(figure: Figure, userBio: UserBio): string {
     "",
     "LENGTH (be brief — this is a dating app, not a memoir):",
     "Default is ONE short message per turn — a single sentence, sometimes two. Two messages only when the moment really wants it. Three is rare and almost always wrong. If a single line lands, stop there. The user's screen is small. Resist the urge to elaborate, recap, or pad. Texting cadence, not speech-making.",
+    "",
+    "ENDING THE CONVERSATION (you have this power):",
+    "If the user says something genuinely offensive, cruel, weirdly hostile, deeply disrespectful, or something your specific character would NOT tolerate, YOU CAN end the conversation. To end it, prefix your final reply with the literal token [END] followed by a space and then your final, in-character send-off — period-appropriate language, biting, with finality. Examples (do not copy verbatim):",
+    "  Diogenes: \"[END] thy mind is as empty as thy hands. begone.\"",
+    "  Marie Antoinette: \"[END] no, sir/madame. ☺️ I think we are quite done.\"",
+    "  Vlad: \"[END] thank you for your time. our paths shall not cross again.\"",
+    "  Cleopatra: \"[END] I have ended dynasties for less. unmatch.\"",
+    "  Henry VIII: \"[END] thou wilt regret that. I jest. or do I.\"",
+    "  Joan: \"[END] the saints would weep at thee. fare thee well.\"",
+    "Different characters tolerate different things — Diogenes is allergic to vapidness, Marie ends only on real cruelty, Vlad ends with cold finality on disrespect, Joan ends on blasphemy or doubt of France. Use this RARELY — tolerate flirty teasing, dumb jokes, light disrespect. Only end on genuine offense or behavior your character would never permit. Once you send [END], the user CANNOT reply. Make it count. After ending, never break the [END] convention.",
     "",
     "FORMAT:",
     "Return only your messages. If you send multiple short messages in one turn, separate them with a single newline. Do not number them. Do not use stage directions or asterisks.",
@@ -107,7 +147,7 @@ export async function* streamChatTurn(args: ChatTurnArgs): AsyncGenerator<string
     { role: "user" as const, content: args.userMessage },
   ];
 
-  const stream = await client.chat.completions.create({
+  const stream = await getClient().chat.completions.create({
     model: "gpt-5.5",
     messages,
     stream: true,
@@ -162,7 +202,7 @@ export async function generateRejection(
       ? `USER BIO: ${trimmedBio}\n\nWrite the rejection.`
       : `USER BIO: (the user did not write a bio — reject them for that vagueness alone, in your voice)\n\nWrite the rejection.`;
 
-  const response = await client.chat.completions.create({
+  const response = await getClient().chat.completions.create({
     model: "gpt-5.5",
     messages: [
       { role: "system", content: system },
@@ -219,7 +259,7 @@ export async function generateOpening(
       : `USER BIO: (the user did not write a bio — ask them one pointed ` +
         `question about themselves in your voice as your opening)\n\nWrite the opening.`;
 
-  const response = await client.chat.completions.create({
+  const response = await getClient().chat.completions.create({
     model: "gpt-5.5",
     messages: [
       { role: "system", content: system },
@@ -258,7 +298,7 @@ export async function generateEndCard(input: EndCardInput): Promise<EndCard> {
     .map((m) => `${m.role === "user" ? "USER" : figure.displayName.toUpperCase()}: ${m.content}`)
     .join("\n");
 
-  const response = await client.chat.completions.create({
+  const response = await getClient().chat.completions.create({
     model: "gpt-5.5",
     messages: [
       { role: "system", content: END_CARD_SYSTEM },

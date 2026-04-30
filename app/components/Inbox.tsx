@@ -95,12 +95,21 @@ function MatchRow({
     <button
       type="button"
       onClick={onOpen}
-      className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-white/5"
+      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-white/5 ${
+        entry.ended ? "opacity-70" : ""
+      }`}
     >
-      <Avatar src={photoUrl} alt={figure.displayName} />
+      <Avatar src={photoUrl} alt={figure.displayName} muted={entry.ended} />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <p className="truncate font-semibold">{figure.displayName}</p>
+          <p className="flex min-w-0 items-center gap-1.5 truncate font-semibold">
+            <span className="truncate">{figure.displayName}</span>
+            {entry.ended && (
+              <span className="shrink-0 rounded-full bg-flame-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-flame-400">
+                unmatched
+              </span>
+            )}
+          </p>
           <span className="shrink-0 text-[10px] uppercase tracking-wider opacity-40">
             {relativeTime(entry.matchedAt)}
           </span>
