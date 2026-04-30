@@ -62,8 +62,16 @@ export function BioInput({
     <div className="relative h-[100dvh] w-full overflow-hidden">
       {!minimal && <PhotoWaterfall />}
 
-      <div className="relative z-10 mx-auto flex h-full w-full max-w-md flex-col">
-        <div className="no-scrollbar flex-1 overflow-y-auto px-5 pt-8 pb-4 sm:px-6 sm:pt-10">
+      {/* Scrollable form region — full viewport with padding to clear the
+          fixed bottom button bar. Top padding respects iPhone notch. */}
+      <div
+        className="no-scrollbar absolute inset-0 z-10 overflow-y-auto"
+        style={{
+          paddingTop: "calc(env(safe-area-inset-top) + 1.5rem)",
+          paddingBottom: "calc(env(safe-area-inset-bottom) + 7rem)",
+        }}
+      >
+        <div className="mx-auto w-full max-w-md px-5 sm:px-6">
           <div className="rounded-3xl border border-white/10 bg-ink-900/80 p-6 shadow-card backdrop-blur-xl sm:p-7">
             {!minimal ? (
               <>
@@ -182,13 +190,17 @@ export function BioInput({
             </div>
           </div>
         </div>
+      </div>
 
-        <div
-          className="border-t border-white/8 bg-ink-900/85 px-5 py-4 backdrop-blur-md sm:px-6 sm:py-5"
-          style={{
-            paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)",
-          }}
-        >
+      {/* Fixed bottom action bar — always visible regardless of scroll position
+          or viewport height changes. Safe-area inset for the iPhone home bar. */}
+      <div
+        className="absolute inset-x-0 bottom-0 z-20 border-t border-white/8 bg-ink-900/90 backdrop-blur-md"
+        style={{
+          paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)",
+        }}
+      >
+        <div className="mx-auto w-full max-w-md px-5 pt-4 sm:px-6 sm:pt-5">
           <button
             type="button"
             onClick={handleSubmit}
