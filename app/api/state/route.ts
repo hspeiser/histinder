@@ -31,10 +31,6 @@ function getSupabase(): SupabaseClient | null {
   return _client;
 }
 
-function dbAvailable(): boolean {
-  return Boolean(getSupabase());
-}
-
 function getOrCreateUserId(req: NextRequest): { id: string; isNew: boolean } {
   const existing = req.cookies.get(COOKIE_NAME)?.value;
   if (existing && /^[a-f0-9-]{20,}$/i.test(existing)) {
@@ -142,5 +138,3 @@ export async function DELETE(req: NextRequest) {
   }
 }
 
-// satisfy "unused" linter in case dbAvailable becomes useful elsewhere
-export const __dbAvailable = dbAvailable;
